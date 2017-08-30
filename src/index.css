@@ -3,3 +3,9 @@ body {
   padding: 0;
   font-family: sans-serif;
 }
+
+#root {
+	display: flexbox;
+  	margin: 0 auto;
+  	width:90%;
+}
