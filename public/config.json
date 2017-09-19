@@ -3,5 +3,6 @@
 	"url":"https://docs.google.com/spreadsheets/d/1glxR_Cm8PH3532pPEdsoR47TBVWHIPMwQ_VKi6ukwRU/edit?usp=sharing",
 	"who":"#org",
 	"where":"#country+name",
-	"what":"#sector"
+	"what":"#sector",
+	"extra":"country+code"
 }

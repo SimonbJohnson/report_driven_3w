@@ -16,3 +16,16 @@
 .hbvalue {
 	color:#00447C;
 }
+
+.recharts-wrapper {
+	display:inline-block;
+}
+
+.mapbite {
+	display:inline-block;
+}
+
+.tables {
+	display:inline-block;
+	vertical-align:top;
+}

@@ -21,7 +21,7 @@ let hxlBites = {
 			if(matchingValues !== false){
 				let variables = self._getVariables(bite,matchingValues);
 				let newBite = self._generateTextBite(bite.phrase,variables);
-				bites.push({'type':'text','subtype':bite.subType,'priority':bite.priority,'bite':newBite});
+				bites.push({'type':'text','subtype':bite.subType,'priority':bite.priority,'bite':newBite, 'id':bite.id});
 			}
 		});
 		return bites;
@@ -40,16 +40,68 @@ let hxlBites = {
 			if(matchingValues !== false){
 				let variables = self._getTableVariables(self._data,bite,matchingValues);
 				let newBite = self._generateTableBite(bite.table,variables);
-				bites.push({'type':'table','subtype':bite.subType,'priority':bite.priority,'bite':newBite});
+				bites.push({'type':'table','subtype':bite.subType,'priority':bite.priority,'bite':newBite, 'id':bite.id});
 			}			
 		});
 		return bites;
 	},
 
+	getChartBites: function(){
+		let self = this;
+		let bites = [];
+		this._chartBites.forEach(function(bite,i){
+			let distinctOptions = {};
+			bite.ingredients.forEach(function(ingredient){
+				distinctValues = self._getIngredientValues(ingredient,self._data);
+				distinctOptions[ingredient.name] = distinctValues;
+			});
+			let matchingValues = self._checkCriteria(bite.criteria,distinctOptions);
+			if(matchingValues !== false){
+				let variables = self._getTableVariables(self._data,bite,matchingValues);
+				let newBite = self._generateChartBite(bite.chart,variables);
+				bites.push({'type':'chart','subtype':bite.subType,'priority':bite.priority,'bite':newBite, 'id':bite.id});
+			}			
+		});
+		return bites;
+	},
+
+	getMapBites: function(){
+		let self = this;
+		let bites = [];
+		this._mapBites.forEach(function(bite,i){
+			let distinctOptions = {};
+			bite.ingredients.forEach(function(ingredient){
+				distinctValues = self._getIngredientValues(ingredient,self._data);
+				distinctOptions[ingredient.name] = distinctValues;
+			});
+			let matchingValues = self._checkCriteria(bite.criteria,distinctOptions);
+			if(matchingValues !== false){
+				let tag = bite.ingredients[0].tags[0];
+				let location = null;
+				let level = 0;
+				if(tag=='#country+code'){
+					location = 'world';
+				}
+				if(location!=null){
+					let keyVariable = bite.variables[0]
+					let values = matchingValues[keyVariable][0].values;
+					let mapCheck = self._checkMapCodes(location,level,values);
+					if(mapCheck.percent>0.5){
+						let variables = self._getTableVariables(self._data,bite,matchingValues);
+						let newBite = self._generateMapBite(bite.map,variables,location,level);
+						bites.push({'type':'map','subtype':bite.subType,'priority':bite.priority,'bite':newBite, 'id':bite.id, 'geom_url':mapCheck.url,'geom_attribute':mapCheck.code});
+					}
+				}
+			}		
+		});
+		console.log(bites);
+		return bites;
+	},		
+
 	_getIngredientValues: function(ingredient,data){
 		let ingredientDistinct = [];
 		let dataset = hxl.wrap(data);
-		dataset.withColumns(ingredient.tags).forEach(function(row,col,rowindex){					
+		dataset.withColumns(ingredient.tags).forEach(function(row,col,rowindex){				
 			row.values.forEach(function(value,index){
 				//At the moment only include first tag that meets requirement.
 				if(index==0){
@@ -135,6 +187,12 @@ let hxlBites = {
 				let col = new Array(firstCol.length).fill(0);
 				if(variable.indexOf('(')>-1){
 					let func = variable.split('(')[0];
+					if(func == 'count'){
+						col[0] = 'Count';
+						keyValues.forEach(function(keyValue,index){
+							col[index+1] = keyValue.value;
+						});
+					}
 				} else {
 					let match = matchingValues[variable][0];
 					col[0] = match.header;
@@ -215,6 +273,35 @@ let hxlBites = {
 		return variableList;
 	},
 
+	_checkMapCodes: function(location,level,values){
+		let maxMatch = 0;
+		let maxCode = 0;
+		let name = location+'_'+level;
+		let maxValues = [];
+		hxlBites._mapValues[name].codes.forEach(function(code){
+			let match = 0;
+			values.forEach(function(value,i){
+				if(code.values.indexOf(value)>-1){
+					match++;
+				}
+			});
+			if(match>maxMatch){
+				maxMatch=match;
+				maxCode = code.name;
+			}
+		});
+		let matchPercent = maxMatch/values.length;
+		let unmatched = values.length - maxMatch;
+		let url = this._getGeomURL(name);
+		return {'unmatched':unmatched,'percent':matchPercent,'code':maxCode,'url':url};
+	},
+
+	_getGeomURL(name){
+		url = {};
+		url['world_0'] = 'world.json';
+		return url[name];
+	},
+
 	//change later to form every iteration
 	_generateTextBite: function(phrase,variables){
 		phrase = phrase.split('{');
@@ -249,7 +336,34 @@ let hxlBites = {
 				}) ;
 			}
 		}
-		let bite = this._tableToHTML(tableData);
+		let bite = tableData;
+		return bite;
+	},
+
+	_generateChartBite: function(chart,variables){
+		let chartData = this._transposeTable(variables);
+		if(chart.length>0){
+			let func=chart.split('(')[0];
+			if(func=='rows'){
+				let value = parseInt(chart.split('(')[1].split(')')[0]);
+				chartData = chartData.filter(function(row,i){
+					if(i<value+1){
+						return true;
+					} else {
+						return false;
+					}
+				}) ;
+			}
+		}
+		let bite = chartData;
+		return bite;
+	},
+
+
+	//use better way to get tags that does not grab first tag.
+	_generateMapBite: function(map,variables,location,level){
+		let mapData = this._transposeTable(variables);
+		let bite = mapData;
 		return bite;
 	},
 
@@ -266,31 +380,6 @@ let hxlBites = {
 		}
 		return newTable;
 	},
-
-	_tableToHTML: function(table){
-		let html = '<table>';
-		table.forEach(function(row,index){
-			if(index == 0 ){
-				html += '<thead><tr>';
-				row.forEach(function(value){
-					html+='<th>'+value+'</th>';
-				});
-			}
-			if(index == 1 ){
-				html += '</tr></thead><tbody><tr>'
-			}
-			if(index > 1 ){
-				html += '</tr><tr>'
-			}
-			if(index>0){
-				row.forEach(function(value){
-					html+='<td>'+value+'</td>';
-				});
-			}
-		});
-		html += '</tr></tbody></table>';
-		return html;
-	},	
 
 	_varFuncCount: function(match){
 		return '<span class="hbvalue">'+match.uniqueValues.length+'</span>';
@@ -360,6 +449,4 @@ let hxlBites = {
 			return this._varFuncList(match);
 		}
 	}
-
-
 }
