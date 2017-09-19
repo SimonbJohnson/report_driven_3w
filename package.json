@@ -2,6 +2,7 @@
   "name": "report_driven_3w",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://simonbjohnson.github.io/report_driven_3w/",
   "dependencies": {
     "axios": "^0.16.2",
     "d3-geo": "^1.7.1",
